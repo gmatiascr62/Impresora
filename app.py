@@ -1,6 +1,7 @@
 from flask import Flask, request, send_file, jsonify
 import fitz
 import io
+import zipfile
 
 app = Flask(__name__)
 
@@ -14,19 +15,23 @@ def pdf_a_imagen():
 
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
-    page = doc[0]  # primera página
-    
-    # 🔥 Acá está el DPI
-    pix = page.get_pixmap(dpi=150)
+    zip_buffer = io.BytesIO()
+    zip_file = zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED)
 
-    img_bytes = pix.tobytes("png")
+    for i in range(len(doc)):
+        page = doc[i]
+        pix = page.get_pixmap(dpi=150)
+        img_bytes = pix.tobytes("png")
+        zip_file.writestr(f"pagina_{i+1}.png", img_bytes)
+
+    zip_file.close()
     doc.close()
 
-    return send_file(
-        io.BytesIO(img_bytes),
-        mimetype="image/png",
-        download_name="pagina.png"
-    )
+    zip_buffer.seek(0)
 
-if __name__ == "__main__":
-    app.run(debug=True)
+    return send_file(
+        zip_buffer,
+        mimetype="application/zip",
+        download_name="imagenes.zip",
+        as_attachment=True
+    )
